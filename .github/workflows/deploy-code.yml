@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'backend/api/**'
+      - "backend/api/**"
 
 jobs:
   deploy:
@@ -16,7 +16,6 @@ jobs:
       contents: read
 
     steps:
-
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -69,7 +68,27 @@ jobs:
           echo "Current version: $CURRENT"
           echo "Target version: $VERSION"
 
+          APPSPEC=$(jq -n \
+            --arg current "$CURRENT" \
+            --arg target "$VERSION" \
+            '{
+              version: "0.0",
+              Resources: [
+                {
+                  myLambdaFunction: {
+                    Type: "AWS::Lambda::Function",
+                    Properties: {
+                      Name: "api-dev",
+                      Alias: "live",
+                      CurrentVersion: $current,
+                      TargetVersion: $target
+                    }
+                  }
+                }
+              ]
+            }')
+
           aws deploy create-deployment \
             --application-name api-dev-app \
             --deployment-group-name api-dev-dg \
-            --revision revisionType=AppSpecContent,appSpecContent="{content={\"version\":\"0.0\",\"Resources\":[{\"myLambdaFunction\":{\"Type\":\"AWS::Lambda::Function\",\"Properties\":{\"Name\":\"api-dev\",\"Alias\":\"live\",\"CurrentVersion\":\"$CURRENT\",\"TargetVersion\":\"$VERSION\"}}}]}}"
+            --revision revisionType=AppSpecContent,appSpecContent="{content=$APPSPEC}"
