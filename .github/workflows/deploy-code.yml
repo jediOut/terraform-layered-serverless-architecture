@@ -68,22 +68,24 @@ jobs:
           echo "Current version: $CURRENT"
           echo "Target version: $VERSION"
 
-          jq - n \
-            --arg current "$CURRENT" \
-            --arg target "$VERSION" \
-            '{
-              version: "0.0",
-              Resources: [
-                {
-                  myLambdaFunction: {
-                    Type: "AWS::Lambda::Function",
-                    Properties: {
-                      Name: "api-dev",
-                      Alias: "live",
-                      CurrentVersion: $current,
-                      TargetVersion: $target
-                    }
-                  }]}' > appspec.json
+          cat <<EOF > appspec.json
+          {
+            "version": "0.0",
+            "Resources": [
+              {
+                "myLambdaFunction": {
+                  "Type": "AWS::Lambda::Function",
+                  "Properties": {
+                    "Name": "api-dev",
+                    "Alias": "live",
+                    "CurrentVersion": "$CURRENT",
+                    "TargetVersion": "$VERSION"
+                  }
+                }
+              }
+            ]
+          }
+          EOF
 
           aws deploy create-deployment \
             --application-name api-dev-app \
