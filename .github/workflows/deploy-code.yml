@@ -68,7 +68,7 @@ jobs:
           echo "Current version: $CURRENT"
           echo "Target version: $VERSION"
 
-          APPSPEC=$(jq -n \
+          jq - n \
             --arg current "$CURRENT" \
             --arg target "$VERSION" \
             '{
@@ -83,12 +83,9 @@ jobs:
                       CurrentVersion: $current,
                       TargetVersion: $target
                     }
-                  }
-                }
-              ]
-            }')
+                  }]}' > appspec.json
 
           aws deploy create-deployment \
             --application-name api-dev-app \
             --deployment-group-name api-dev-dg \
-            --revision revisionType=AppSpecContent,appSpecContent="{content=$APPSPEC}"
+            --revision revisionType=AppSpecContent,appSpecContent="{content=$(cat appspec.json)}"
