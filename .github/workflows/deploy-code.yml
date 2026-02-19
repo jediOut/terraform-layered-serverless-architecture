@@ -1,0 +1,75 @@
+name: Deploy Lambda Code
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/api/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::687337999212:role/github-actions-oidc-role
+          aws-region: us-east-1
+
+      - name: Install deps
+        run: |
+          cd backend/api
+          npm install
+
+      - name: Build Lambda
+        run: |
+          cd backend/api
+          npx esbuild src/lambda.ts --bundle --platform=node --format=esm --target=node18 --outfile=dist/lambda.js
+
+      - name: Zip
+        run: |
+          cd backend/api
+          zip dist.zip dist/lambda.js
+
+      - name: Publish new Lambda version
+        id: publish
+        run: |
+          VERSION=$(aws lambda update-function-code \
+            --function-name api-dev \
+            --zip-file fileb://backend/api/dist.zip \
+            --publish \
+            --query Version \
+            --output text)
+
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Deploy with CodeDeploy (Canary)
+        run: |
+          CURRENT=$(aws lambda get-alias \
+            --function-name api-dev \
+            --name live \
+            --query FunctionVersion \
+            --output text)
+
+          echo "Current version: $CURRENT"
+          echo "Target version: $VERSION"
+
+          aws deploy create-deployment \
+            --application-name api-dev-app \
+            --deployment-group-name api-dev-dg \
+            --revision revisionType=AppSpecContent,appSpecContent="{content={\"version\":\"0.0\",\"Resources\":[{\"myLambdaFunction\":{\"Type\":\"AWS::Lambda::Function\",\"Properties\":{\"Name\":\"api-dev\",\"Alias\":\"live\",\"CurrentVersion\":\"$CURRENT\",\"TargetVersion\":\"$VERSION\"}}}]}}"
