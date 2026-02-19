@@ -38,9 +38,14 @@ jobs:
       - name: Build Lambda
         run: |
           cd backend/api
-          npx esbuild src/lambda.ts --bundle --platform=node --format=esm --target=node18 --outfile=dist/lambda.js
+          npx esbuild src/lambda.ts \
+            --bundle \
+            --platform=node \
+            --format=esm \
+            --target=node18 \
+            --outfile=dist/lambda.js
 
-      - name: Zip
+      - name: Zip Lambda
         run: |
           cd backend/api
           zip dist.zip dist/lambda.js
@@ -68,26 +73,17 @@ jobs:
           echo "Current version: $CURRENT"
           echo "Target version: $VERSION"
 
-          cat <<EOF > appspec.json
+          cat <<EOF > deployment.json
           {
-            "version": "0.0",
-            "Resources": [
-              {
-                "myLambdaFunction": {
-                  "Type": "AWS::Lambda::Function",
-                  "Properties": {
-                    "Name": "api-dev",
-                    "Alias": "live",
-                    "CurrentVersion": "$CURRENT",
-                    "TargetVersion": "$VERSION"
-                  }
-                }
+            "applicationName": "api-dev-app",
+            "deploymentGroupName": "api-dev-dg",
+            "revision": {
+              "revisionType": "AppSpecContent",
+              "appSpecContent": {
+                "content": "{\"version\":\"0.0\",\"Resources\":[{\"myLambdaFunction\":{\"Type\":\"AWS::Lambda::Function\",\"Properties\":{\"Name\":\"api-dev\",\"Alias\":\"live\",\"CurrentVersion\":\"$CURRENT\",\"TargetVersion\":\"$VERSION\"}}}]}"
               }
-            ]
+            }
           }
           EOF
 
-          aws deploy create-deployment \
-            --application-name api-dev-app \
-            --deployment-group-name api-dev-dg \
-            --revision revisionType=AppSpecContent,appSpecContent="{content=$(cat appspec.json)}"
+          aws deploy create-deployment --cli-input-json file://deployment.json
